@@ -103,6 +103,10 @@ public class AppListActivity extends AppCompatActivity {
 			return allPackages;
 		}
 
+		public List<Package> getFilteredPackages() {
+			return filteredPackages;
+		}
+
 		private boolean matchesFilter(Package pkg, String filter) {
 			if (filter == null || filter.length() == 0)
 				return true;
@@ -194,6 +198,28 @@ public class AppListActivity extends AppCompatActivity {
 			}
 		});
 
+		findViewById(R.id.select_all).setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				setSelectionOnVisible(true);
+			}
+		});
+		findViewById(R.id.select_none).setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				setSelectionOnVisible(false);
+			}
+		});
+		findViewById(R.id.select_invert).setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				for (Package pkg : adapter.getFilteredPackages())
+					pkg.selected = !pkg.selected;
+				adapter.notifyDataSetChanged();
+				isChanged = true;
+			}
+		});
+
 		searchBox.addTextChangedListener(new TextWatcher() {
 			@Override
 			public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
@@ -206,6 +232,13 @@ public class AppListActivity extends AppCompatActivity {
 			@Override
 			public void afterTextChanged(Editable s) { }
 		});
+	}
+
+	private void setSelectionOnVisible(boolean selected) {
+		for (Package pkg : adapter.getFilteredPackages())
+			pkg.selected = selected;
+		adapter.notifyDataSetChanged();
+		isChanged = true;
 	}
 
 	@Override
