@@ -12,11 +12,14 @@ package hev.sockstun;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Random;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.app.Notification;
 import android.app.Notification.Builder;
@@ -35,12 +38,20 @@ public class TProxyService extends VpnService {
 
 	public static final String ACTION_CONNECT = "hev.sockstun.CONNECT";
 	public static final String ACTION_DISCONNECT = "hev.sockstun.DISCONNECT";
+	public static final String ACTION_ROTATE_UPDATE = "hev.sockstun.ROTATE_UPDATE";
 
 	static {
 		System.loadLibrary("hev-socks5-tunnel");
 	}
 
 	private ParcelFileDescriptor tunFd = null;
+	private final Handler handler = new Handler(Looper.getMainLooper());
+	private final Runnable rotateRunnable = new Runnable() {
+		@Override
+		public void run() {
+			rotateProfile();
+		}
+	};
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
@@ -48,8 +59,59 @@ public class TProxyService extends VpnService {
 			stopService();
 			return START_NOT_STICKY;
 		}
+		if (intent != null && ACTION_ROTATE_UPDATE.equals(intent.getAction())) {
+			scheduleRotation();
+			return START_STICKY;
+		}
 		startService();
 		return START_STICKY;
+	}
+
+	private void scheduleRotation() {
+		handler.removeCallbacks(rotateRunnable);
+		if (tunFd == null)
+		  return;
+		Preferences prefs = new Preferences(this);
+		if (prefs.getRotateMode() == Preferences.ROTATE_OFF)
+		  return;
+		handler.postDelayed(rotateRunnable, prefs.getRotateInterval() * 1000L);
+	}
+
+	/* Switch to the next profile and restart the tunnel in place,
+	   without killing the process like a full stopService() does. */
+	private void rotateProfile() {
+		if (tunFd == null)
+		  return;
+
+		Preferences prefs = new Preferences(this);
+		int mode = prefs.getRotateMode();
+		if (mode == Preferences.ROTATE_OFF)
+		  return;
+
+		int count = prefs.getProfileCount();
+		if (count < 2) {
+			scheduleRotation();
+			return;
+		}
+
+		int selected = prefs.getSelected();
+		int next;
+		if (mode == Preferences.ROTATE_RANDOM) {
+			next = new Random().nextInt(count - 1);
+			if (next >= selected)
+			  next++;
+		} else {
+			next = (selected + 1) % count;
+		}
+		prefs.setSelected(next);
+
+		TProxyStopService();
+		try {
+			tunFd.close();
+		} catch (IOException e) {
+		}
+		tunFd = null;
+		startService();
 	}
 
 	@Override
@@ -173,12 +235,14 @@ public class TProxyService extends VpnService {
 		String channelName = "socks5";
 		initNotificationChannel(channelName);
 		createNotification(channelName);
+		scheduleRotation();
 	}
 
 	public void stopService() {
 		if (tunFd == null)
 		  return;
 
+		handler.removeCallbacks(rotateRunnable);
 		new Preferences(this).setEnable(false);
 		QSTileService.requestUpdate(this);
 
@@ -204,6 +268,7 @@ public class TProxyService extends VpnService {
 		NotificationCompat.Builder notification = new NotificationCompat.Builder(this, channelName);
 		Notification notify = notification
 				.setContentTitle(getString(R.string.app_name))
+				.setContentText(new Preferences(this).getProfileName())
 				.setSmallIcon(android.R.drawable.sym_def_app_icon)
 				.setContentIntent(pi)
 				.build();

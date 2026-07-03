@@ -10,10 +10,15 @@
 package hev.sockstun;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.content.Intent;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
+import android.text.InputType;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -56,6 +61,27 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	private Button button_profile_prev;
 	private Button button_profile_next;
 	private TextView textview_profile_name;
+	private MenuItem menuitem_rotate;
+	private int lastSelected = -1;
+
+	/* Poll shared preferences while visible: rotation runs in the
+	   :native process, whose writes never fire this process's
+	   change listeners. Constructing Preferences re-reads the file
+	   (MODE_MULTI_PROCESS), refreshing the shared instance. */
+	private final Handler uiHandler = new Handler(Looper.getMainLooper());
+	private final Runnable refreshRunnable = new Runnable() {
+		@Override
+		public void run() {
+			new Preferences(MainActivity.this);
+			int selected = prefs.getSelected();
+			if (prefs.getEnable() && selected != lastSelected)
+			  updateUI();
+			else
+			  updateControlState();
+			lastSelected = selected;
+			uiHandler.postDelayed(this, 1000);
+		}
+	};
 
 	/* Refresh the control state when the tunnel is toggled elsewhere
 	   (e.g. from the Quick Settings tile) while this screen is visible. */
@@ -138,7 +164,114 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	@Override
 	protected void onResume() {
 		super.onResume();
+		lastSelected = prefs.getSelected();
 		updateControlState();
+		uiHandler.postDelayed(refreshRunnable, 1000);
+	}
+
+	@Override
+	protected void onPause() {
+		super.onPause();
+		uiHandler.removeCallbacks(refreshRunnable);
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		menuitem_rotate = menu.add(0, 0, 0, R.string.rotate_off);
+		menuitem_rotate.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS | MenuItem.SHOW_AS_ACTION_WITH_TEXT);
+		updateRotateMenuItem();
+		return true;
+	}
+
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		if (item == menuitem_rotate) {
+			onRotateClicked();
+			return true;
+		}
+		return super.onOptionsItemSelected(item);
+	}
+
+	private void onRotateClicked() {
+		switch (prefs.getRotateMode()) {
+		case Preferences.ROTATE_OFF:
+			showRotateIntervalDialog();
+			break;
+		case Preferences.ROTATE_SEQUENTIAL:
+			prefs.setRotateMode(Preferences.ROTATE_RANDOM);
+			updateRotateMenuItem();
+			notifyRotateUpdate();
+			break;
+		default:
+			prefs.setRotateMode(Preferences.ROTATE_OFF);
+			updateRotateMenuItem();
+			notifyRotateUpdate();
+			break;
+		}
+	}
+
+	private void showRotateIntervalDialog() {
+		final EditText input = new EditText(this);
+		input.setInputType(InputType.TYPE_CLASS_NUMBER);
+		input.setText(Integer.toString(prefs.getRotateInterval()));
+		input.setHint(R.string.rotate_interval);
+		input.setSingleLine(true);
+		input.selectAll();
+
+		FrameLayout container = new FrameLayout(this);
+		int padding = (int) (16 * getResources().getDisplayMetrics().density);
+		container.setPadding(padding, 0, padding, 0);
+		container.addView(input);
+
+		new AlertDialog.Builder(this)
+			.setTitle(R.string.rotate_interval)
+			.setView(container)
+			.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					int interval;
+					try {
+						interval = Integer.parseInt(input.getText().toString().trim());
+					} catch (NumberFormatException e) {
+						return;
+					}
+					if (interval < 5)
+					  interval = 5;
+					prefs.setRotateInterval(interval);
+					prefs.setRotateMode(Preferences.ROTATE_SEQUENTIAL);
+					updateRotateMenuItem();
+					notifyRotateUpdate();
+				}
+			})
+			.setNegativeButton(android.R.string.cancel, null)
+			.show();
+	}
+
+	private void updateRotateMenuItem() {
+		if (menuitem_rotate == null)
+		  return;
+		switch (prefs.getRotateMode()) {
+		case Preferences.ROTATE_SEQUENTIAL:
+			menuitem_rotate.setIcon(R.drawable.ic_rotate_seq);
+			menuitem_rotate.setTitle(R.string.rotate_sequential);
+			break;
+		case Preferences.ROTATE_RANDOM:
+			menuitem_rotate.setIcon(R.drawable.ic_rotate_rand);
+			menuitem_rotate.setTitle(R.string.rotate_random);
+			break;
+		default:
+			menuitem_rotate.setIcon(null);
+			menuitem_rotate.setTitle(R.string.rotate_off);
+			break;
+		}
+	}
+
+	/* Let the running tunnel service pick up the new rotation settings. */
+	private void notifyRotateUpdate() {
+		if (!prefs.getEnable())
+		  return;
+		Intent intent = new Intent(this, TProxyService.class);
+		startService(intent.setAction(TProxyService.ACTION_ROTATE_UPDATE));
 	}
 
 	@Override

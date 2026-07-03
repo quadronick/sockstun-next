@@ -27,4 +27,8 @@
 	<string name="profile_limit">Profile limit reached (13)</string>
 	<string name="profile_last">Cannot delete the last profile</string>
 	<string name="profile_delete_confirm">Delete profile “%s”?</string>
+	<string name="rotate_off">OFF</string>
+	<string name="rotate_sequential">Sequential rotation</string>
+	<string name="rotate_random">Random rotation</string>
+	<string name="rotate_interval">Rotation interval (seconds)</string>
 </resources>

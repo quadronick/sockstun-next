@@ -34,8 +34,14 @@ public class Preferences
 	public static final String NAME = "Name";
 	public static final String PROFILE_COUNT = "ProfileCount";
 	public static final String SELECTED = "Selected";
+	public static final String ROTATE_MODE = "RotateMode";
+	public static final String ROTATE_INTERVAL = "RotateInterval";
 
 	public static final int MAX_PROFILES = 13;
+
+	public static final int ROTATE_OFF = 0;
+	public static final int ROTATE_SEQUENTIAL = 1;
+	public static final int ROTATE_RANDOM = 2;
 
 	private SharedPreferences prefs;
 
@@ -329,6 +335,26 @@ public class Preferences
 	public void setApps(Set<String> apps) {
 		SharedPreferences.Editor editor = prefs.edit();
 		editor.putStringSet(key(APPS), apps);
+		editor.commit();
+	}
+
+	public int getRotateMode() {
+		return prefs.getInt(ROTATE_MODE, ROTATE_OFF);
+	}
+
+	public void setRotateMode(int mode) {
+		SharedPreferences.Editor editor = prefs.edit();
+		editor.putInt(ROTATE_MODE, mode);
+		editor.commit();
+	}
+
+	public int getRotateInterval() {
+		return prefs.getInt(ROTATE_INTERVAL, 60);
+	}
+
+	public void setRotateInterval(int seconds) {
+		SharedPreferences.Editor editor = prefs.edit();
+		editor.putInt(ROTATE_INTERVAL, seconds);
 		editor.commit();
 	}
 

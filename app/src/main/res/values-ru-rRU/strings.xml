@@ -27,4 +27,8 @@
 	<string name="profile_limit">Достигнут лимит профилей (13)</string>
 	<string name="profile_last">Нельзя удалить последний профиль</string>
 	<string name="profile_delete_confirm">Удалить профиль «%s»?</string>
+	<string name="rotate_off">OFF</string>
+	<string name="rotate_sequential">Последовательная смена</string>
+	<string name="rotate_random">Случайная смена</string>
+	<string name="rotate_interval">Интервал смены (секунды)</string>
 </resources>
