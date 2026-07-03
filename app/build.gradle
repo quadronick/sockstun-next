@@ -11,9 +11,12 @@ android {
 		targetSdkVersion 34
 		versionCode 12
 		versionName "7.1"
-		setProperty("archivesBaseName", "$applicationId-$versionName")
+		setProperty("archivesBaseName", "$applicationId-$versionName-sm8750")
 		ndk {
-			abiFilters "armeabi-v7a", "arm64-v8a",'x86','x86_64'
+			// One-off build for Qualcomm SM8750 (Snapdragon 8 Elite):
+			// arm64 only, native code tuned for Oryon cores. Will not
+			// run on CPUs older than armv8.7-a.
+			abiFilters "arm64-v8a"
 		}
 		externalNativeBuild {
 			ndkBuild {
@@ -23,6 +26,7 @@ android {
 				// allocator too; the upstream default of 4096 sends them
 				// to plain malloc on every packet.
 				arguments "CONFIG_MEMALLOC_SLICE_MAX_SIZE=16384"
+				arguments "APP_CFLAGS+=-mcpu=oryon-1"
 			}
 		}
 	}
